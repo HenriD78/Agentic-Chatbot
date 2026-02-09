@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+src/__pycache__/
+
+# Environment variables
+.env
+
+# Virtual Environment
+AI-Agent-env/
+venv/
+env/
+
+# Data and Database
+duckdb.db
+memory.db
+data/*.xlsx
+data/*.xls
+*.db
+*.sqlite3
+schema.json
+
+# IDEs
+.vscode/
+.idea/
+.DS_Store
+
+# Logs
+*.log
