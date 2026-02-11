@@ -114,7 +114,20 @@ The system uses a multi-agent architecture orchestrated by LangGraph:
 
 **Schema Format**: `"table1(col1, col2); table2(col1, col2)"`
 
-### 4. Database Management (`src/db_manager.py`)
+### 4. Memory Management (`src/memory.py`)
+
+**Purpose**: Manage conversation history and state across sessions
+
+**Key Class**: `MemoryManager`
+
+**Features**:
+- **Multi-user Support**: Isolates history by `user_id` and `thread_id`
+- **Persistence**:
+  - **In-Memory** (default): Development mode, lost on restart
+  - **PostgreSQL**: Production mode, persistent storage via `langgraph-checkpoint-postgres`
+- **LangGraph Integration**: Provides checkpointers for graph state hydration
+
+### 5. Database Management (`src/db_manager.py`)
 
 **Purpose**: Execute SQL queries safely on DuckDB
 
@@ -143,10 +156,15 @@ The system uses a multi-agent architecture orchestrated by LangGraph:
 
 **Responsibilities**:
 1. Analyze questions to determine if SQL query is needed
-2. Synthesize natural language answers from query results
+2. **Decompose Complex Questions**: Breaks down multi-part questions (e.g., "compare X and Y") into simpler sub-queries
+3. **Review SQL**: Verifies generated queries against schema to prevent hallucinations
+4. Synthesize natural language answers from query results (aggregating sub-results if needed)
 
 **Key Methods**:
 - `analyze_question(question, schema_info)`: Determines if query needed
+- `detect_complexity(question, schema_info)`: Identifies if question needs decomposition
+- `aggregate_results(question, sub_results)`: Combines answers from multiple sub-questions
+- `verify_query(query, schema_info)`: Checks validity of generated SQL
 - `synthesize_answer(question, query, results, schema_info)`: Creates final answer
 
 #### CodingAgent
@@ -205,27 +223,22 @@ supervisor → [conditional] → coding → execute → synthesize → END
 
 ### Phase 1: System Initialization
 
-**File**: `src/main.py` → `initialize_system()`
+**File**: `src/main.py` → `initialize_system()` OR `initialize_database()`
 
-1. **Create DuckDB Connection**
-   - `DuckDBManager()` is instantiated
-   - Database connection is established (in-memory or file-based)
-   - Median extension is installed for statistical functions
+The system has two initialization modes:
 
-2. **Load Excel Files**
-   - `load_excel_files(db.con)` is called
-   - Scans `./data/` directory for `.xlsx` files
-   - For each file:
-     - Opens with `pandas.ExcelFile()`
-     - Parses each sheet into DataFrame
-     - Registers DataFrame as temporary DuckDB view
-     - Creates permanent table from view
-     - Unregisters temporary view
-   - Returns schema dictionary
+**A. Fast Path (Default)**
+- Checks for existing `duckdb.db` and `schema.json`
+- Loads schema directly from JSON (milliseconds)
+- Connects to existing DuckDB file
+- **Usage**: Standard runtime
 
-3. **Initialize Schema Manager**
-   - `SchemaManager()` is created
-   - `schema_manager.update(schemas)` populates the registry
+**B. Initialization Path (`--database` flag)**
+- Scans `./data/` for Excel files
+- Parses sheets into DataFrames
+- Creates/Overwrites persistent DuckDB file
+- EXTRACTS schema and saves to `schema.json`
+- **Usage**: When adding new data or first setup
 
 ### Phase 2: Graph Initialization
 
@@ -282,22 +295,22 @@ supervisor → [conditional] → coding → execute → synthesize → END
 7. **Return Final State**
    - Graph returns final state with answer (or error)
 
-### Phase 4: Display Results
+### Phase 4: Display Results / Chat Loop
 
 **File**: `src/main.py` → `main()`
 
-1. **Verbose Mode** (if `--verbose` flag)
-   - Displays schema information
-   - Shows generated SQL query
-   - Shows query results (first 10 rows)
-   - Shows any errors
+**Single Question Mode**:
+1. Graph executes once
+2. Result displayed
+3. DB connection closed
 
-2. **Display Answer**
-   - Prints the synthesized answer
-   - Handles errors gracefully
-
-3. **Cleanup**
-   - Closes database connection
+**Interactive Chat Mode** (`--chat`):
+1. Initializes `MemoryManager` (Postgres or In-Memory)
+2. Enters `while True` loop
+3. Accepts user input
+4. Runs graph with `thread_id` config for state persistence
+5. Displays answer and waits for next input
+6. Preserves context across turns
 
 ## File Execution Guide
 

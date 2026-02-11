@@ -23,7 +23,7 @@ Local, multi-agent RAG pipeline orchestrated with LangGraph. The system routes u
 1. **Install Ollama**: Download and install from [ollama.com](https://ollama.com/)
 2. **Pull required models**:
    ```bash
-   ollama pull ministral-3:3b
+   ollama pull ministral3:8b
    ollama pull qwen2.5-coder:7b
    ```
 3. **Start Ollama** (if not running as a service):
@@ -33,10 +33,30 @@ Local, multi-agent RAG pipeline orchestrated with LangGraph. The system routes u
 
 ### Usage
 
-CLI entry point:
+**1. Initialize the Database (Fast Start)**  
+Run this once (or whenever you add new Excel files) to parse data and build the persistent DuckDB database:
+```bash
+python -m src.main --database
+```
+
+**2. Ask a Question (One-off)**  
+Uses the pre-built database for faster response:
 ```bash
 python -m src.main --question "How has the number of sessions changed since 2024, by market?"
 ```
+
+**3. Interactive Chat Mode**  
+Start a conversation with memory support:
+```bash
+python -m src.main --chat
+```
+
+**Options**:
+- `--database` / `-d`: Re-scan Excel files and rebuild the database
+- `--verbose` / `-v`: Show SQL queries and debugging info
+- `--chat` / `-c`: Enter interactive chat mode
+- `--user [ID]`: Specify user ID for memory isolation (default: "default_user")
+- `--thread [ID]`: Specify thread ID to resume a conversation
 
 With verbose output (shows SQL queries and detailed results):
 ```bash
@@ -54,12 +74,20 @@ The system can answer analytical questions such as:
 
 ## Configuration
 
+## Configuration
+
 Environment variables (see `.env.example`):
 - `OLLAMA_HOST`: Ollama base URL (e.g., `http://localhost:11434`)
-- `OLLAMA_SUPERVISOR_MODEL`: supervisor LLM (e.g., `ministral-3:3b`)
-- `OLLAMA_CODER_MODEL`: coding LLM (e.g., `qwen2.5-coder:7b`)
-- `DUCKDB_PATH`: path to DuckDB database file (or `:memory:`)
+- `OLLAMA_SUPERVISOR_MODEL`: supervisor LLM (default: `ministral3:8b`)
+- `OLLAMA_CODER_MODEL`: coding LLM (default: `qwen2.5-coder:7b`)
+- `DUCKDB_PATH`: path to persistent DuckDB database file (default: `./duckdb.db`)
 - `DATA_DIR`: directory for Excel files
+- `AGENT_TEMPERATURE`: default temperature for agents (default: 0.1)
+
+### Memory Configuration
+The system supports persistent conversation memory. By default, it uses in-memory storage (lost on restart). To enable PostgreSQL persistence:
+1. Set `USE_POSTGRES_MEMORY=true`
+2. Set `POSTGRES_CONNECTION_STRING=postgresql://user:password@localhost:5432/dbname`
 - `AGENT_TEMPERATURE`: default temperature for agents
 
 ## Project layout
@@ -85,7 +113,7 @@ Environment variables (see `.env.example`):
 
 The system uses a multi-agent architecture orchestrated with LangGraph:
 
-1. **Supervisor Agent** (ministral-3:3b): Analyzes questions and determines if SQL queries are needed
+1. **Supervisor Agent** (ministral3:8b): Analyzes questions, decomposes complex queries, and synthesizes answers
 2. **Coding Agent** (qwen2.5-coder:7b): Generates SQL queries based on questions and schema
 3. **DuckDB**: Executes SQL queries on Excel data loaded as tables
 4. **LangGraph**: Orchestrates the workflow with conditional routing
