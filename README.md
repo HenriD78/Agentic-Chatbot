@@ -140,3 +140,7 @@ User Question → Supervisor → [Needs Query?] → Coding Agent → Execute SQL
 - Each sheet in an Excel file becomes a separate DuckDB table
 - Table names are auto-generated as `{workbook_name}_{sheet_name}` (lowercase, sanitized)
 - The system automatically detects schema and makes it available to agents
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
